@@ -1,0 +1,129 @@
+bundle common global {
+    vars:
+        # TODO: add for nova-network and so on...
+        "compute" slist => {
+            "10.10.0.1", "cloudserver01",
+        };
+
+        "config_path" string => "$(sys.workdir)/masterfiles/config_files/";
+        "server"      string => "mycfserver.example.org";
+
+    classes:
+        "compute" expression => "$(global.compute)";
+}
+
+body common control {
+    version => "0.1";
+    inputs  => {
+        "cfengine_stdlib.cf",
+        "update.cf",
+        "server.cf",
+        #"site.cf",
+    };
+
+    bundlesequence => {
+        "check_cf_stuff",
+        "set_up_repositories",
+        "set_up_nova",
+    };
+}
+
+
+bundle agent check_cf_stuff {
+    vars:
+        "cf_components" slist    => {"cf-serverd", "cf-execd"};
+
+    processes:
+        "$(cf_components)"
+            comment             => "Restart CFengine components",
+            restart_class       => canonify("restart_$(cf_components)");
+
+    commands:
+        "$(sys.workdir)/bin/$(cf_components)"
+            ifvarclass => canonify("restart_$(cf_components)");
+}
+
+bundle agent set_up_repositories {
+    packages:
+        "python-software-properties"
+            handle          => "pkg_req",
+            package_policy  => "add",
+            package_method  => apt;
+    commands:
+        "/usr/bin/add-apt-repository"
+            args        => "ppa:openstack-ppa/milestone-proposed -y",
+            depends_on  => {"pkg_req"};
+}
+
+bundle agent set_up_nova {
+    vars:
+        compute::
+            "packages"      slist => {"nova-compute-xen", "python-glance"};
+            "service_list" slist => {"nova-compute",};
+
+    packages:
+        "$(packages)"
+            handle          => "install_pkgs",
+            package_policy  => "add",
+            package_method  => apt;
+
+    files:
+        "/etc/nova/nova.conf"
+            depends_on => {"install_pkgs"},
+            perms      => mog("0600", "nova", "nova"),
+            classes    => if_repaired("restart_services"),
+            copy_from  => secure_cp("$(global.config_path)/nova.conf", "$(global.server)");
+
+    commands:
+        restart_services::
+            "/usr/sbin/service" 
+                args => "$(service_list) restart";
+}
+
+bundle agent set_up_compute_hypervisor {
+    # TODO: For the moment we only have Xen+libvirt support.
+    vars:
+        "services" slist => {"xend",
+                             "libvirt-bin",
+                             "nova-compute"
+        };
+
+    files:
+        "/etc/libvirt/libvirtd.conf"
+            comment   => "Change unix socket to nova ownership",
+            edit_line => replace_or_add('unix_sock_group.*', 'unix_sock_group = "nova"'),
+            classes   => if_repaired("restart_libvirt_bin");
+            
+        "/etc/xen/xend-config.sxp"
+            comment   => "Allow unix socket connections",
+            edit_line => append_if_no_line("(xend-unix-server yes)"),
+            classes   => if_repaired("restart_xend");
+
+        "/etc/libvirt/qemu/networks/autostart/default.xml"
+            comment => "Delete default libvirt bridge",
+            delete  => tidy,
+            classes => if_repaired("restart_libvirt_bin");
+
+        "/etc/init/nova-compute.conf"
+            comment   => "Add default connection URI for libvirt+Xen",
+            edit_line => replace_or_add('exec su -s /bin/sh -c "exec nova-compute(.*)$', 
+                                        'exec su -s /bin/sh -c "VIRSH_DEFAULT_CONNECT_URI=xen:/// exec nova-compute$(match.2)'),
+            classes   => if_repaired("restart_nova_compute");
+
+    processes:
+        "$(services)"
+            comment        => "Restart services if they are not running", 
+            restart_class  => canonify("restart_$(services)");
+
+    commands:
+        "/usr/sbin/service $(services)"
+            args        => "restart",
+            ifvarclass  => canonify("restart_$(services)");
+
+        restart_libvirt_bin::
+            "/sbin/brctl"
+                comment => "Delete default libvirt bridge",
+                args    => "delbr virbr0";
+            "/usr/sbin/service"
+                args => "libvirt-bin restart";
+}

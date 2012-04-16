@@ -1,0 +1,62 @@
+bundle agent update {
+    vars:
+        "master_location" string => "/var/cfengine/masterfiles";
+        "server"          string => "mycfserver.example.org";
+
+    files:
+        "/var/cfengine/inputs"
+            perms        => u_p("600"),
+            copy_from    => my_secure_cp("$(master_location)","$(server)"),
+            depth_search => recurse("inf"),
+            file_select  => cf_conf,
+            action       => uimmediate;
+
+        "/var/cfengine/bin"
+            perms        => u_p("700"),
+            depth_search => recurse("inf"),
+            file_select  => cf3_files,
+            action       => uimmediate;
+}
+
+############################################
+
+body perms u_p(p) {
+    mode  => "$(p)";
+}
+
+############################################
+
+body file_select cf_conf {
+    leaf_name   => { ".*\.cf" };
+    file_result => "leaf_name";
+}
+
+body file_select cf3_files {
+    leaf_name   => { "cf-.*" };
+    file_result => "leaf_name";
+}
+
+#########################################################
+
+body copy_from my_secure_cp(from,server) {
+    source      => "$(from)";
+    servers     => { "$(server)" };
+    compare     => "digest";
+    encrypt     => "true";
+    verify      => "true";
+    trustkey    => "true";
+}
+
+
+body copy_from copy_local(from) {
+    source      => "$(from)";
+    compare     => "digest";
+    copy_backup => "false";
+}
+
+#########################################################
+
+body action uimmediate {
+    ifelapsed => "1";
+}
+

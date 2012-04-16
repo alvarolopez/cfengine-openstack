@@ -1,0 +1,43 @@
+body server control {
+    allowconnects         => {
+        "127.0.0.1",
+        "@(global.compute)",
+    };
+
+    allowallconnects      => {
+        "127.0.0.1",
+        "@(global.compute)",
+    };
+
+    trustkeysfrom         => {
+        "127.0.0.1",
+        "@(global.compute)",
+    };
+    
+    maxconnections => "100";
+
+    # Make updates and runs happen in one
+
+    cfruncommand          => "$(sys.workdir)/bin/cf-agent -f failsafe.cf && $(sys.workdir)/bin/cf-agent";
+    allowusers            => { "root" };
+
+}
+
+bundle server access_rules() {
+    vars:
+        "cf_files" slist => {
+            "$(sys.workdir)/masterfiles/",
+            "$(sys.workdir)/masterfiles/*.cf",
+            "$(global.config_path)/",
+            "$(global.config_path)/nova.conf",
+        };
+
+    access:
+        "$(cf_files)"
+            admit => {
+                "127.0.0.1",
+                "@(global.compute)",
+            };
+}
+
+
