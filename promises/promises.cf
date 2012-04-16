@@ -1,34 +1,50 @@
+# Global bundle in which we define classes, the bundlesequence and global
+# variables needed by any other bunbles.
 bundle common global {
     vars:
-        # TODO: add for nova-network and so on...
         "compute" slist => {
-            "10.10.0.1", "cloudserver01",
+            # The compute nodes go here
+            "%COMPUTE_NODES%"
         };
 
+        # The CFengine server to pull changes from
+        "server"      string => "%SERVER_HOST%";
+
+        # Configuration files path on the server
         "config_path" string => "$(sys.workdir)/masterfiles/config_files/";
-        "server"      string => "mycfserver.example.org";
+
+        # Build the bundlesequece. We first check CFengine stuff, then run
+        # the local bundles (if any) and then start setting up nova.
+        "site_sequence" slist => {
+                "check_cf_stuff",
+                "@(local.bundlesequence)",
+                "set_up_repositories",
+                "set_up_nova",
+            },
+            policy => "ifdefined";
 
     classes:
         "compute" expression => "$(global.compute)";
 }
 
+# The control body for CFengine
 body common control {
     version => "0.1";
     inputs  => {
         "cfengine_stdlib.cf",
         "update.cf",
         "server.cf",
+        "local.cf"
         #"site.cf",
     };
 
     bundlesequence => {
-        "check_cf_stuff",
-        "set_up_repositories",
-        "set_up_nova",
+        "@(global.site_sequence)",
     };
 }
 
 
+# Check if daemons are running
 bundle agent check_cf_stuff {
     vars:
         "cf_components" slist    => {"cf-serverd", "cf-execd"};
@@ -57,19 +73,23 @@ bundle agent set_up_repositories {
 
 bundle agent set_up_nova {
     vars:
+        # We filter the needed packages by the node class that we defined in
+        # the global bundle.
         compute::
-            "packages"      slist => {"nova-compute-xen", "python-glance"};
+            "packages"     slist => {"nova-compute-xen", "python-glance", "python-novaclient"};
             "service_list" slist => {"nova-compute",};
 
     packages:
         "$(packages)"
+            comment         => "Install nova packages",
             handle          => "install_pkgs",
-            package_policy  => "add",
+            package_policy  => "addupdate",
             package_method  => apt;
 
     files:
         "/etc/nova/nova.conf"
             depends_on => {"install_pkgs"},
+            comment    => "Sync configuration file with the one in the server",
             perms      => mog("0600", "nova", "nova"),
             classes    => if_repaired("restart_services"),
             copy_from  => secure_cp("$(global.config_path)/nova.conf", "$(global.server)");
@@ -77,7 +97,8 @@ bundle agent set_up_nova {
     commands:
         restart_services::
             "/usr/sbin/service" 
-                args => "$(service_list) restart";
+                comment => "Restart the nova services, configuration changed",
+                args    => "$(service_list) restart";
 }
 
 bundle agent set_up_compute_hypervisor {

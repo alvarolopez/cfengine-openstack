@@ -1,0 +1,14 @@
+# Set these two variables to point to the correct server hostname
+SERVER_HOST=myserver.example.org
+
+#
+# Openstack configuration
+#
+# Set this variables to the list of hosts that will be part of your
+# Openstack installation.
+#
+# Please add both the IP and hostname to each list, otherwise it will
+# not work as expected
+
+# Compute nodes
+COMPUTE_NODES="10.10.0.1 cloudserver01 10.10.0.2 cloudserver02 10.10.0.3 cloudserver03"
