@@ -16,10 +16,6 @@ bundle common global {
         # Build the bundlesequece. We first check CFengine stuff, then run
         # the local bundles (if any) and then start setting up nova.
         "site_sequence" slist => {
-                "check_cf_stuff",
-                "@(local.bundlesequence)",
-                "set_up_repositories",
-                "set_up_nova",
             },
             policy => "ifdefined";
 
@@ -38,8 +34,14 @@ body common control {
         #"site.cf",
     };
 
+    ignore_missing_bundles => "true";
+
     bundlesequence => {
-        "@(global.site_sequence)",
+        "check_cf_stuff",
+        "@(local.bundlesequence)",
+        "set_up_repositories",
+        "set_up_nova",
+        "set_up_compute_hypervisor"
     };
 }
 
@@ -76,7 +78,7 @@ bundle agent set_up_nova {
         # We filter the needed packages by the node class that we defined in
         # the global bundle.
         compute::
-            "packages"     slist => {"nova-compute-xen", "python-glance", "python-novaclient"};
+            "packages"     slist => {"nova-compute-xen", "python-glance", "python-novaclient", "ntp", "ntpdate"};
             "service_list" slist => {"nova-compute",};
 
     packages:

@@ -1,8 +1,9 @@
 # Add your local promises here. Do not forget to add your local bundlesequence
 # to the local bundle.
 
-bundle common local {
-    vars
-        "bundlesequece" slist {
+bundle agent local {
+    vars:
+        "bundlesequence" slist => {
             "",
-        }
+        };
+}
