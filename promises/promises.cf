@@ -150,7 +150,7 @@ bundle agent set_up_compute_hypervisor {
 
     reports:
         configured_xen::
-            "I've changed the boot options for Xen, you need to restart the machine to get these changes reflected. Then re-run CFengine to ensure that everything is properly installed";
+            "I've changed the GRUB options for Xen, you need to restart the machine to get these changes reflected. Then re-run CFengine to ensure that everything is properly installed";
 
     processes:
         "$(services)"
@@ -161,6 +161,9 @@ bundle agent set_up_compute_hypervisor {
         "/usr/sbin/service $(services)"
             args        => "restart",
             ifvarclass  => canonify("restart_$(services)");
+
+        configured_xen::
+            "/usr/sbin/update-grub";
 
         restart_libvirt_bin::
             "/sbin/brctl"
