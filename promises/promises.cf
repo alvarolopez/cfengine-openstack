@@ -133,6 +133,25 @@ bundle agent set_up_compute_hypervisor {
                                         'exec su -s /bin/sh -c "VIRSH_DEFAULT_CONNECT_URI=xen:/// exec nova-compute$(match.2)'),
             classes   => if_repaired("restart_nova_compute");
 
+        "/etc/default/grub"
+            comment   => "Boot Xen",
+            edit_line => replace_or_add('GRUB_DEFAULT=.*', 'GRUB_DEFAULT="Xen 4.1-amd64"'),
+            classes   => if_repaired("configured_xen");
+
+        "/etc/default/grub"
+            comment   => "Set loop devices",
+            edit_line => append_if_no_line('GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT max_loop=512"'),
+            classes   => if_repaired("configured_xen");
+
+        "/etc/default/grub"
+            comment   => "Set max number of cpus",
+            edit_line => append_if_no_line('GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT dom0_max_vcpus=2 dom0_vcpus_pin"'),
+            classes   => if_repaired("configured_xen");
+
+    reports:
+        configured_xen::
+            "I've changed the boot options for Xen, you need to restart the machine to get these changes reflected. Then re-run CFengine to ensure that everything is properly installed";
+
     processes:
         "$(services)"
             comment        => "Restart services if they are not running", 
