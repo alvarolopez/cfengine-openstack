@@ -2,7 +2,7 @@
 # variables needed by any other bunbles.
 bundle common global {
     vars:
-        "compute" slist => {
+        "compute_nodes" slist => {
             # The compute nodes go here
             "%COMPUTE_NODES%"
         };
@@ -20,7 +20,32 @@ bundle common global {
             policy => "ifdefined";
 
     classes:
-        "compute" expression => "$(global.compute)";
+        "compute_nodes" expression => "$(global.compute_nodes)";
+        "cloud_nodes"   expression => "compute_nodes";
+}
+
+# Define custom bundlesequences
+bundle common bund {
+    vars:
+        any::
+            "bs" slist => {
+                "check_cf_stuff",
+                "@(local.bundlesequence)",
+            }, policy => "free";
+
+        cloud_nodes::
+            "bs" slist => {
+                "@{bs}",
+                "set_up_repositories",
+                "set_up_nova",
+            }, policy => "free";
+
+
+        compute_nodes::
+            "bs" slist => {
+                "@{bs}",
+                "set_up_compute_hypervisor",
+            }, policy => "free";
 }
 
 # The control body for CFengine
@@ -37,12 +62,9 @@ body common control {
     ignore_missing_bundles => "true";
 
     bundlesequence => {
-        "check_cf_stuff",
-        "@(local.bundlesequence)",
-        "set_up_repositories",
-        "set_up_nova",
-        "set_up_compute_hypervisor"
+        "@(bund.bs)",
     };
+
 }
 
 
@@ -77,7 +99,7 @@ bundle agent set_up_nova {
     vars:
         # We filter the needed packages by the node class that we defined in
         # the global bundle.
-        compute::
+        compute_nodes::
             "packages"     slist => {"nova-compute-xen", "python-glance", "python-novaclient", "ntp", "ntpdate"};
             "service_list" slist => {"nova-compute",};
 
