@@ -160,6 +160,7 @@ bundle agent set_up_compute_hypervisor {
             edit_line => replace_or_add('GRUB_DEFAULT=.*', 'GRUB_DEFAULT="Xen 4.1-amd64"'),
             classes   => if_repaired("configured_xen");
 
+        # FIXME(aloga): check that no similar options are already there.
         "/etc/default/grub"
             comment   => "Set loop devices",
             edit_line => append_if_no_line('GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT max_loop=512"'),
@@ -167,7 +168,7 @@ bundle agent set_up_compute_hypervisor {
 
         "/etc/default/grub"
             comment   => "Set max number of cpus",
-            edit_line => append_if_no_line('GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT dom0_max_vcpus=2 dom0_vcpus_pin"'),
+            edit_line => append_if_no_line('GRUB_CMDLINE_XEN="$GRUB_CMDLINE_XEN dom0_max_vcpus=2 dom0_vcpus_pin"'),
             classes   => if_repaired("configured_xen");
 
     reports:
